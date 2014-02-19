@@ -1,12 +1,13 @@
 FROM ubuntu:latest
 MAINTAINER Bernardo Pericacho <bernardo@tutum.co>
 
-# Install and HAProxy configuration
-RUN apt-get update && apt-get install -y haproxy
-ADD https://github.com/tutumcloud/tutum-docker-clusterproxy/master/HAProxy.cfg /etc/haproxy/haproxy.cfg
-RUN sed -i s/ENABLED=0/ENABLED=1/g /etc/default/haproxy
+# Install required packages
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y haproxy supervisor
 
-# Run HAProxy
+# Add configuration and scripts
+ADD https://raw.github.com/tutumcloud/tutum-docker-clusterproxy/master/haproxy.cfg /etc/haproxy/haproxy.cfg
+ADD https://raw.github.com/tutumcloud/tutum-docker-clusterproxy/master/haproxy.cfg.json /etc/haproxy/haproxy.cfg.json
+ADD https://raw.github.com/tutumcloud/tutum-docker-clusterproxy/master/supervisord-haproxy.conf /etc/supervisor/conf.d/supervisord-haproxy.conf
 ADD https://raw.github.com/tutumcloud/tutum-docker-clusterproxy/master/run.sh /run.sh
 RUN chmod 755 /*.sh
 
