@@ -8,14 +8,20 @@ import json
 import shutil
 import os
 import signal
+import requests
+import time
 
 logger = logging.getLogger(__name__)
 
-FRONTEND_HTTP_ACL_LINE = "acl is_%(b)s hdr(host) -i %(h)s"
-FRONTEND_HTTP_USEBACKEND_LINE = "use_backend %(b)s if is_%(b)s"
+FRONTEND_USEBACKEND_LINE = "use_backend %(b)s if is_%(b)s"
+FRONTEND_BIND_LINE = "bind :%d"
 BACKEND_USE_SERVER_LINE = "server %(h)s-%(p)s %(i)s:%(p)s"
 
-CONTAINER_CLUSTER_UUID = os.environ.get('CONTAINER_CLUSTER_UUID')
+RESOURCE_URI = os.environ.get('RESOURCE_URI')
+TUTUM_AUTH = os.environ.get("TUTUM_AUTH")
+TUTUM_API_HOST = os.environ.get("TUTUM_API_HOST")
+TUTUM_POLLING_PERIOD = os.environ.get("TUTUM_POLLING_PERIOD", 30)
+
 HAPROXY_PROCESS_NAME = "haproxy"
 
 
@@ -36,20 +42,23 @@ def need_to_reload_config(current_filename, new_filename):
     return original_md5 != new_md5
 
 
-def add_or_update_app_to_haproxy(server_supervisor, url, docker_ports, node_public_ip="localhost"):
-    logger.info("Adding URL %s with ports %s", url, docker_ports)
-    if not isinstance(docker_ports, list):
-        docker_ports = [docker_ports]
-    if not docker_ports or not url:
+def add_or_update_app_to_haproxy(server_supervisor, url, ports_to_balance):
+    logger.info("Adding or updating URL %s with ports %s", url, ports_to_balance)
+    if not ports_to_balance or not url:
         return
-    app_backendname = hashlib.sha224(url).hexdigest()[:16]
     cfg = {'frontend': {}, 'backend': {}}
-    cfg['frontend']['http'] = []
-    cfg['frontend']['http'].append(FRONTEND_HTTP_ACL_LINE % {'b': app_backendname, 'h': url})
-    cfg['frontend']['http'].append(FRONTEND_HTTP_USEBACKEND_LINE % {'b': app_backendname})
-    cfg['backend'][app_backendname] = ["balance roundrobin"]
-    for port in docker_ports:
-        cfg['backend'][app_backendname].append(BACKEND_USE_SERVER_LINE % {'h': app_backendname, 'i': node_public_ip, 'p': port})
+    for inner_port, outer_port_list in ports_to_balance.iteritems():
+        app_frontendname = hashlib.sha224(url+str(inner_port)).hexdigest()[:16]
+        app_backendname = "cluster_" + app_frontendname
+
+        cfg['frontend'][app_frontendname] = []
+        cfg['frontend'][app_frontendname].append(FRONTEND_BIND_LINE % inner_port)
+        cfg['frontend'][app_frontendname].append(FRONTEND_USEBACKEND_LINE % {'b': app_backendname})
+        cfg['backend'][app_backendname] = ["balance roundrobin"]
+        for port in outer_port_list:
+            cfg['backend'][app_backendname].append(BACKEND_USE_SERVER_LINE % {'h': app_backendname,
+                                                                              'i': port["public_dns"],
+                                                                              'p': port["outer_port"]})
     _update_haproxy_config(server_supervisor, new_app_cfg=cfg)
 
 
@@ -75,16 +84,17 @@ def _update_haproxy_config(server_supervisor, new_app_cfg=None):
                 cfg = json.load(cfgjson_tmp_file)
 
             if new_app_cfg:
-                for line in new_app_cfg['frontend']['http']:
-                    if line not in cfg['frontend']['http']:
-                        cfg['frontend']['http'].append(line)
-                for backend_name, backend_config in new_app_cfg['backend'].iteritems():
-                    if backend_name not in cfg['backend']:
-                        cfg['backend'][backend_name] = backend_config
-                    else:
-                        for backend_config_line in backend_config:
-                            if backend_config_line not in cfg['backend'][backend_name]:
-                                cfg['backend'][backend_name].append(backend_config_line)
+                for app_frontendname, frontend_config in new_app_cfg['frontend'].iteritems():
+                    for line in frontend_config:
+                        if line not in cfg['frontend'][app_frontendname]:
+                            cfg['frontend'][app_frontendname].append(line)
+                    for backend_name, backend_config in new_app_cfg['backend'].iteritems():
+                        if backend_name not in cfg['backend']:
+                            cfg['backend'][backend_name] = backend_config
+                        else:
+                            for backend_config_line in backend_config:
+                                if backend_config_line not in cfg['backend'][backend_name]:
+                                    cfg['backend'][backend_name].append(backend_config_line)
 
             with open(cfgjson_tmp, "w") as cfgjson_tmp_file:
                 json.dump(cfg, cfgjson_tmp_file)
@@ -161,12 +171,54 @@ if __name__ == "__main__":
         print "HAProxy service is not configured in supervisor"
         sys.exit(1)
 
+    session = requests.Session()
+    request_url = "%s%s" % (TUTUM_API_HOST, RESOURCE_URI)
+    headers = {"Authorization": TUTUM_AUTH}
+
     while True:
         try:
-            # Get all running containers
-            # Get each container and its outer port
-            # Call to add_or_update_app_to_haproxy
-            pass
+            # Get HAProxy Process Info
+            haproxy_process_info = server.supervisor.getProcessInfo(HAPROXY_PROCESS_NAME)
+
+            # Get all containers from the container cluster
+            r = session.get(request_url, headers=headers)
+            if r.status_code != 200:
+                raise Exception("Request url %s gives us a %d error code", r.status_code)
+            else:
+                r.raise_for_status()
+
+            container_cluster_info = r.json()
+
+            if container_cluster_info["state"] not in ["Running", "Partly Running"] \
+                    and haproxy_process_info["state"] == 1:
+                logger.debug("=> Stop haproxy")
+                server.supervisor.stopProcess(HAPROXY_PROCESS_NAME, wait=True)
+            elif container_cluster_info["state"] in ["Running", "Partly Running"]:
+                ports_to_balance = {}
+
+                # Get all running containers and outer ports
+                for container in container_cluster_info["containers"]:
+                    container_url = "%s%s" % (TUTUM_API_HOST, container)
+                    r = session.get(container_url, headers=headers)
+
+                    if r.status_code != 200:
+                        raise Exception("Request url %s gives us a %d error code", r.status_code)
+                    else:
+                        r.raise_for_status()
+
+                    container_info = r.json()
+                    if container_info["state"] == "Running":
+                        for port in container_info["container_ports"]:
+                            if port["protocol"] == "tcp":
+                                outer_port_list = ports_to_balance.get(port["inner_port"], [])
+                                outer_port_list.append({"outer_port": port["outer_port"],
+                                                        "public_dns": container_info["public_dns"]})
+                                ports_to_balance[port["inner_port"]] = outer_port_list
+
+                # Call to add_or_update_app_to_haproxy
+                add_or_update_app_to_haproxy(server.supervisor, "url_to_register", ports_to_balance)
+
         except Exception as e:
             print "ERROR: %s" % e
             pass
+        time.sleep(TUTUM_POLLING_PERIOD)
