@@ -11,6 +11,8 @@ ADD https://raw.github.com/tutumcloud/tutum-docker-clusterproxy/master/haproxy.c
 ADD https://raw.github.com/tutumcloud/tutum-docker-clusterproxy/master/supervisord-haproxy.conf /etc/supervisor/conf.d/supervisord-haproxy.conf
 ADD https://raw.github.com/tutumcloud/tutum-docker-clusterproxy/master/supervisord-httpserver.conf /etc/supervisor/conf.d/supervisord-httpserver.conf
 ADD https://raw.github.com/tutumcloud/tutum-docker-clusterproxy/master/requirements.txt /requirements.txt
+ADD https://raw.github.com/tutumcloud/tutum-docker-clusterproxy/master/supervisord-balancer.conf /etc/supervisor/conf.d/supervisord-balancer.conf
+ADD https://raw.github.com/tutumcloud/tutum-docker-clusterproxy/master/main.py /main.py
 ADD https://raw.github.com/tutumcloud/tutum-docker-clusterproxy/master/run.sh /run.sh
 RUN chmod 755 /*.sh
 RUN pip install -r /requirements.txt
