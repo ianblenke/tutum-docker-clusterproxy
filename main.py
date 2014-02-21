@@ -19,7 +19,7 @@ BACKEND_USE_SERVER_LINE = "server %(h)s-%(p)s %(i)s:%(p)s"
 
 RESOURCE_URI = os.environ.get('RESOURCE_URI')
 TUTUM_AUTH = os.environ.get("TUTUM_AUTH")
-TUTUM_API_HOST = os.environ.get("TUTUM_API_HOST")
+TUTUM_API_HOST = os.environ.get("TUTUM_API_HOST", "https://app.tutum.co")
 TUTUM_POLLING_PERIOD = os.environ.get("TUTUM_POLLING_PERIOD", 30)
 
 HAPROXY_PROCESS_NAME = "haproxy"
