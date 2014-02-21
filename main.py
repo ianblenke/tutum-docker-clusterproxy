@@ -42,13 +42,13 @@ def need_to_reload_config(current_filename, new_filename):
     return original_md5 != new_md5
 
 
-def add_or_update_app_to_haproxy(server_supervisor, url, ports_to_balance):
-    logger.info("Adding or updating URL %s with ports %s", url, ports_to_balance)
-    if not ports_to_balance or not url:
+def add_or_update_app_to_haproxy(server_supervisor, ports_to_balance):
+    logger.info("Adding or updating HAProxy with ports %s", ports_to_balance)
+    if not ports_to_balance:
         return
     cfg = {'frontend': {}, 'backend': {}}
     for inner_port, outer_port_list in ports_to_balance.iteritems():
-        app_frontendname = hashlib.sha224(url+str(inner_port)).hexdigest()[:16]
+        app_frontendname = hashlib.sha224("frontend_"+str(inner_port)).hexdigest()[:16]
         app_backendname = "cluster_" + app_frontendname
 
         cfg['frontend'][app_frontendname] = []
@@ -165,12 +165,14 @@ if __name__ == "__main__":
         print "Supervisor is not running"
         sys.exit(1)
 
+    logger.debug("Balancer: supervisor is Running")
     try:
         server.supervisor.getProcessInfo(HAPROXY_PROCESS_NAME)
     except Exception:
         print "HAProxy service is not configured in supervisor"
         sys.exit(1)
 
+    logger.debug("Balancer: HAProxy service is Running")
     session = requests.Session()
     request_url = "%s%s" % (TUTUM_API_HOST, RESOURCE_URI)
     headers = {"Authorization": TUTUM_AUTH}
@@ -179,6 +181,7 @@ if __name__ == "__main__":
         try:
             # Get HAProxy Process Info
             haproxy_process_info = server.supervisor.getProcessInfo(HAPROXY_PROCESS_NAME)
+            logger.debug("Balancer: HAProxy service info. %s", haproxy_process_info)
 
             # Get all containers from the container cluster
             r = session.get(request_url, headers=headers)
@@ -188,6 +191,7 @@ if __name__ == "__main__":
                 r.raise_for_status()
 
             container_cluster_info = r.json()
+            logger.debug("Balancer: Container Cluster info. %s", container_cluster_info)
 
             if container_cluster_info["state"] not in ["Running", "Partly Running"] \
                     and haproxy_process_info["state"] == 1:
@@ -197,7 +201,10 @@ if __name__ == "__main__":
                 ports_to_balance = {}
 
                 # Get all running containers and outer ports
+                logger.debug("Balancer: Getting containers from container cluster %s",
+                             container_cluster_info["uuid"])
                 for container in container_cluster_info["containers"]:
+                    logger.debug("Balancer: Getting info from container %s", container)
                     container_url = "%s%s" % (TUTUM_API_HOST, container)
                     r = session.get(container_url, headers=headers)
 
@@ -207,6 +214,7 @@ if __name__ == "__main__":
                         r.raise_for_status()
 
                     container_info = r.json()
+                    logger.debug("Balancer: Info from container %s", container_info)
                     if container_info["state"] == "Running":
                         for port in container_info["container_ports"]:
                             if port["protocol"] == "tcp":
@@ -216,7 +224,8 @@ if __name__ == "__main__":
                                 ports_to_balance[port["inner_port"]] = outer_port_list
 
                 # Call to add_or_update_app_to_haproxy
-                add_or_update_app_to_haproxy(server.supervisor, "url_to_register", ports_to_balance)
+                logger.debug("Balancer: Add or Update HAProxy: %s", ports_to_balance)
+                add_or_update_app_to_haproxy(server.supervisor, ports_to_balance)
 
         except Exception as e:
             print "ERROR: %s" % e
