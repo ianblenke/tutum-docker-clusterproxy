@@ -18,5 +18,16 @@
         "contimeout      5000",
         "clitimeout      50000",
         "srvtimeout      50000"
-    ]
+    ],
+    "frontend": {
+        "http": [
+            "bind 0.0.0.0:80",
+            "default_backend tutum"
+        ]
+    },
+    "backend": {
+        "tutum": [
+            "redirect location http://www.tutum.co/ code 302"
+        ]
+    }
 }

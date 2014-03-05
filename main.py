@@ -1,28 +1,25 @@
 import hashlib
 import logging
-import xmlrpclib
-import supervisor.xmlrpc
-import sys
 import tempfile
 import json
 import shutil
 import os
-import signal
 import requests
 import time
+import string
+import subprocess
 
 logger = logging.getLogger(__name__)
 
 FRONTEND_USEBACKEND_LINE = "use_backend %(b)s if is_%(b)s"
-FRONTEND_BIND_LINE = "bind :%d"
+FRONTEND_BIND_LINE = "bind :%s"
 BACKEND_USE_SERVER_LINE = "server %(h)s-%(p)s %(i)s:%(p)s"
+PORT = "80"
+BALANCER_TYPE = "_PORT_%s_TCP" % PORT
+TUTUM_CLUSTER_NAME = "_TUTUM_API_URL"
+POLLING_PERIOD = 30
 
-RESOURCE_URI = os.environ.get('RESOURCE_URI')
 TUTUM_AUTH = os.environ.get("TUTUM_AUTH")
-TUTUM_API_HOST = os.environ.get("TUTUM_API_HOST", "https://app.tutum.co")
-TUTUM_POLLING_PERIOD = os.environ.get("TUTUM_POLLING_PERIOD", 30)
-
-HAPROXY_PROCESS_NAME = "haproxy"
 
 
 def need_to_reload_config(current_filename, new_filename):
@@ -37,30 +34,31 @@ def get_md5_hash_from_file_content(filename):
     return md5.hexdigest()
 
 
-def add_or_update_app_to_haproxy(server_supervisor, ports_to_balance):
-    logger.info("Adding or updating HAProxy with ports %s", ports_to_balance)
-    if not ports_to_balance:
+def add_or_update_app_to_haproxy(dictionary):
+    if not dictionary or dictionary == {}:
         return
+    outer_ports_and_web_public_dns = dictionary.values()
+    logger.info("Adding or updating HAProxy with ports %s", outer_ports_and_web_public_dns)
     cfg = {'frontend': {}, 'backend': {}}
-    for inner_port, outer_port_list in ports_to_balance.iteritems():
-        app_frontendname = hashlib.sha224("frontend_"+str(inner_port)).hexdigest()[:16]
-        app_backendname = "cluster_" + app_frontendname
 
-        cfg['frontend'][app_frontendname] = []
-        cfg['frontend'][app_frontendname].append(FRONTEND_BIND_LINE % inner_port)
-        cfg['frontend'][app_frontendname].append(FRONTEND_USEBACKEND_LINE % {'b': app_backendname})
-        cfg['backend'][app_backendname] = ["balance roundrobin"]
-        for port in outer_port_list:
-            cfg['backend'][app_backendname].append(BACKEND_USE_SERVER_LINE % {'h': app_backendname,
-                                                                              'i': port["public_dns"],
-                                                                              'p': port["outer_port"]})
-    if cfg['frontend'] == {}:
-        cfg = None
+    app_frontendname = hashlib.sha224("frontend_"+PORT).hexdigest()[:16]
+    app_backendname = "cluster_" + app_frontendname
 
-    _update_haproxy_config(server_supervisor, new_app_cfg=cfg)
+    cfg['frontend'][app_frontendname] = []
+    cfg['frontend'][app_frontendname].append(FRONTEND_BIND_LINE % PORT)
+    cfg['frontend'][app_frontendname].append(FRONTEND_USEBACKEND_LINE % {'b': app_backendname})
+    cfg['backend'][app_backendname] = ["balance roundrobin"]
+
+    for outer_port_and_dns in outer_ports_and_web_public_dns:
+
+        cfg['backend'][app_backendname].append(BACKEND_USE_SERVER_LINE % {'h': app_backendname,
+                                                                          'i': outer_port_and_dns["web_public_dns"],
+                                                                          'p': outer_port_and_dns["outer_port"]})
+
+    _update_haproxy_config(new_app_cfg=cfg)
 
 
-def _update_haproxy_config(server_supervisor, new_app_cfg=None):
+def _update_haproxy_config(new_app_cfg=None):
 
     try:
         # Temp files
@@ -95,27 +93,8 @@ def _update_haproxy_config(server_supervisor, new_app_cfg=None):
             with open(new_cfgjson_tmp, "w") as new_cfgjson_tmp_file:
                 json.dump(cfg, new_cfgjson_tmp_file)
 
-            # Reconfigure CFG file
-            # logger.debug("=> Reconfigure CFG")
-            # with open(cfg_tmp, "w") as cfg_tmp_file:
-            #     cfg_tmp_file.write(_render_cfg(cfg))
-
-            haproxy_process_info = server_supervisor.getProcessInfo(HAPROXY_PROCESS_NAME)
-            # HAProxy process is not running
-            if haproxy_process_info['state'] != 1:
-                logger.debug("=> Initial configuration")
-                shutil.move(new_cfgjson_tmp, '/etc/haproxy/haproxy.cfg.json')
-                with open(new_cfg_tmp, "w") as new_cfg_tmp_file:
-                    new_cfg_tmp_file.write(_render_cfg(cfg))
-                shutil.move(new_cfg_tmp, '/etc/haproxy/haproxy.cfg')
-
-                # Start HAProxy
-                logger.debug("=> Start haproxy")
-                server_supervisor.startProcess(HAPROXY_PROCESS_NAME, wait=True)
-
             # Check if we need to update cfg file
-            elif haproxy_process_info['state'] == 1 and need_to_reload_config(new_cfgjson_tmp,
-                                                                              '/etc/haproxy/haproxy.cfg.json'):
+            if need_to_reload_config(new_cfgjson_tmp, '/etc/haproxy/haproxy.cfg.json'):
                 # Put new configuration
                 logger.debug("=> Put new configuration")
                 with open(new_cfg_tmp, "w") as new_cfg_tmp_file:
@@ -125,7 +104,10 @@ def _update_haproxy_config(server_supervisor, new_app_cfg=None):
 
                 # Reload haproxy
                 logger.debug("=> Reload haproxy")
-                os.kill(haproxy_process_info['pid'], signal.SIGHUP)
+                cmd = "sudo -S bash -c '/etc/init.d/haproxy reload'"
+                process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                process.communicate()
+                assert process.returncode == 0, "Error reloading haproxy configuration"
 
         except Exception:
             raise
@@ -154,81 +136,68 @@ def _render_cfg(cfg):
     return out
 
 
+def get_haproxy_dict_from_env_vars_dict(env_vars):
+    outer_port_list = {}
+    cluster_uris = {}
+
+    for env_var, value in env_vars.iteritems():
+        position = string.find(env_var, BALANCER_TYPE)
+        if position != -1:
+            container_name = env_var[:position]
+            container_values = outer_port_list.get(container_name, {'web_public_dns': None, 'outer_port': None})
+            if env_var.endswith(BALANCER_TYPE + "_ADDR"):
+                container_values['web_public_dns'] = value
+            elif env_var.endswith(BALANCER_TYPE + "_PORT"):
+                container_values['outer_port'] = value
+            outer_port_list[container_name] = container_values
+
+        position = string.find(env_var, TUTUM_CLUSTER_NAME)
+        if position != -1 and env_var.endswith(TUTUM_CLUSTER_NAME):
+            cluster_name = env_var[:position]
+            cluster_uris[cluster_name] = value
+
+    return outer_port_list, cluster_uris
+
+
 if __name__ == "__main__":
     logging.basicConfig()
-    server = xmlrpclib.ServerProxy('http://127.0.0.1',
-                                   transport=supervisor.xmlrpc.SupervisorTransport(None,
-                                                                                   None,
-                                                                                   serverurl='unix:///tmp/'
-                                                                                             'supervisor.sock'))
-
-    if server.supervisor.getState()['statecode'] != 1:
-        print "Supervisor is not running"
-        sys.exit(1)
-
-    logger.debug("Balancer: supervisor is Running")
-    try:
-        server.supervisor.getProcessInfo(HAPROXY_PROCESS_NAME)
-    except Exception:
-        print "HAProxy service is not configured in supervisor"
-        sys.exit(1)
 
     logger.debug("Balancer: HAProxy service is Running")
     session = requests.Session()
-    request_url = "%s%s" % (TUTUM_API_HOST, RESOURCE_URI)
     headers = {"Authorization": TUTUM_AUTH}
 
     while True:
         try:
-            # Get HAProxy Process Info
-            haproxy_process_info = server.supervisor.getProcessInfo(HAPROXY_PROCESS_NAME)
-            logger.debug("Balancer: HAProxy service info. %s", haproxy_process_info)
+            # Get balancer dictionary and clusters from env vars
+            balancer_dictionary_from_env_vars, clusters = get_haproxy_dict_from_env_vars_dict(os.environ)
 
-            # Get all containers from the container cluster
-            r = session.get(request_url, headers=headers)
-            if r.status_code != 200:
-                raise Exception("Request url %s gives us a %d error code", r.status_code)
-            else:
-                r.raise_for_status()
+            if clusters != {}:
+                for cluster_name, uri in clusters.iteritems():
 
-            container_cluster_info = r.json()
-            logger.debug("Balancer: Container Cluster info. %s", container_cluster_info)
-
-            if container_cluster_info["state"] not in ["Running", "Partly Running"] \
-                    and haproxy_process_info["state"] == 1:
-                logger.debug("=> Stop haproxy")
-                server.supervisor.stopProcess(HAPROXY_PROCESS_NAME, wait=True)
-            elif container_cluster_info["state"] in ["Running", "Partly Running"]:
-                ports_to_balance = {}
-
-                # Get all running containers and outer ports
-                logger.debug("Balancer: Getting containers from container cluster %s",
-                             container_cluster_info["uuid"])
-                for container in container_cluster_info["containers"]:
-                    logger.debug("Balancer: Getting info from container %s", container)
-                    container_url = "%s%s" % (TUTUM_API_HOST, container)
-                    r = session.get(container_url, headers=headers)
-
+                    # Get container cluster info
+                    r = session.get(uri, headers=headers)
                     if r.status_code != 200:
                         raise Exception("Request url %s gives us a %d error code", r.status_code)
                     else:
                         r.raise_for_status()
 
-                    container_info = r.json()
-                    logger.debug("Balancer: Info from container %s", container_info)
-                    if container_info["state"] == "Running":
-                        for port in container_info["container_ports"]:
-                            if port["protocol"] == "tcp":
-                                outer_port_list = ports_to_balance.get(port["inner_port"], [])
-                                outer_port_list.append({"outer_port": port["outer_port"],
-                                                        "public_dns": container_info["public_dns"]})
-                                ports_to_balance[port["inner_port"]] = outer_port_list
+                    container_cluster_info = r.json()
+                    logger.debug("Balancer: Container Cluster info. %s", container_cluster_info)
 
-                # Call to add_or_update_app_to_haproxy
-                logger.debug("Balancer: Add or Update HAProxy: %s", ports_to_balance)
-                add_or_update_app_to_haproxy(server.supervisor, ports_to_balance)
+                    cluster_balancer_dict, _ = get_haproxy_dict_from_env_vars_dict(container_cluster_info["link_variables"])
+                    balancer_dictionary_from_env_vars.update(cluster_balancer_dict)
+
+                    old_cluster_member_names = [c_name for c_name in balancer_dictionary_from_env_vars.keys() if c_name.startswith(cluster_name)]
+
+                    containers_to_delete = [c_name for c_name in old_cluster_member_names if c_name not in cluster_balancer_dict.keys()]
+
+                    for container in containers_to_delete:
+                        balancer_dictionary_from_env_vars.pop(container)
+
+            logger.debug("Balancer: Add or Update HAProxy with env vars: %s", balancer_dictionary_from_env_vars)
+            add_or_update_app_to_haproxy(balancer_dictionary_from_env_vars)
 
         except Exception as e:
             print "ERROR: %s" % e
             pass
-        time.sleep(TUTUM_POLLING_PERIOD)
+        time.sleep(POLLING_PERIOD)
