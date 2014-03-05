@@ -6,7 +6,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y haproxy 
 
 # Add configuration and scripts
 ADD https://raw.github.com/tutumcloud/tutum-docker-clusterproxy/master/haproxy.cfg /etc/haproxy/haproxy.cfg
-ADD https://raw.github.com/tutumcloud/tutum-docker-clusterproxy/master/haproxy.cfg /etc/haproxy/empty_haproxy.cfg
+ADD https://raw.github.com/tutumcloud/tutum-docker-clusterproxy/master/haproxy.cfg.json /etc/haproxy/empty_haproxy.cfg.json
 ADD https://raw.github.com/tutumcloud/tutum-docker-clusterproxy/master/haproxy.cfg.json /etc/haproxy/haproxy.cfg.json
 ADD https://raw.github.com/tutumcloud/tutum-docker-clusterproxy/master/supervisord-haproxy.conf /etc/supervisor/conf.d/supervisord-haproxy.conf
 ADD https://raw.github.com/tutumcloud/tutum-docker-clusterproxy/master/supervisord-httpserver.conf /etc/supervisor/conf.d/supervisord-httpserver.conf

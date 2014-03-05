@@ -26,20 +26,15 @@ HAPROXY_PROCESS_NAME = "haproxy"
 
 
 def need_to_reload_config(current_filename, new_filename):
+    return get_md5_hash_from_file_content(current_filename) != get_md5_hash_from_file_content(new_filename)
 
-    with open(current_filename) as original_file:
-        # read contents of the file
-        data = original_file.read()
-        # pipe contents of the file through
-        original_md5 = hashlib.md5(data).hexdigest()
 
-    with open(new_filename) as new_file:
-        # read contents of the file
-        data = new_file.read()
-        # pipe contents of the file through
-        new_md5 = hashlib.md5(data).hexdigest()
-
-    return original_md5 != new_md5
+def get_md5_hash_from_file_content(filename):
+    md5 = hashlib.md5()
+    with open(filename, 'rb') as f:
+        for chunk in iter(lambda: f.read(128*md5.block_size), b''):
+            md5.update(chunk)
+    return md5.hexdigest()
 
 
 def add_or_update_app_to_haproxy(server_supervisor, ports_to_balance):
@@ -59,68 +54,74 @@ def add_or_update_app_to_haproxy(server_supervisor, ports_to_balance):
             cfg['backend'][app_backendname].append(BACKEND_USE_SERVER_LINE % {'h': app_backendname,
                                                                               'i': port["public_dns"],
                                                                               'p': port["outer_port"]})
+    if cfg['frontend'] == {}:
+        cfg = None
+
     _update_haproxy_config(server_supervisor, new_app_cfg=cfg)
 
 
 def _update_haproxy_config(server_supervisor, new_app_cfg=None):
-    if not new_app_cfg: new_app_cfg = []
 
     try:
         # Temp files
         tempfolder = tempfile.mkdtemp()
         try:
 
-            cfgjson_tmp = '%s/%s' % (tempfolder, 'haproxy.cfg.json')
-            cfg_tmp = '%s/%s' % (tempfolder, 'haproxy.cfg')
-            emptycfgjson_tmp = '%s/%s' % (tempfolder, 'empty_haproxy.cfg.json')
+            new_cfg_tmp = '%s/%s' % (tempfolder, 'haproxy.cfg')
+            new_cfgjson_tmp = '%s/%s' % (tempfolder, 'new_haproxy.cfg.json')
 
-            # Get cfg file and its md5
-            logger.debug("=> Get current configuration")
-            shutil.copyfile('/etc/haproxy/haproxy.cfg.json', emptycfgjson_tmp)
+            # Get empty cfg file
+            logger.debug("=> Get empty configuration")
+            shutil.copyfile('/etc/haproxy/empty_haproxy.cfg.json', new_cfgjson_tmp)
 
-            # Reconfigure JSON
+            # Create new JSON
             logger.debug("=> Reconfigure JSON")
-            with open(emptycfgjson_tmp, "r") as cfgjson_tmp_file:
-                cfg = json.load(cfgjson_tmp_file)
+            with open(new_cfgjson_tmp, "r") as emptycfgjson_tmp_file:
+                cfg = json.load(emptycfgjson_tmp_file)
 
             if new_app_cfg:
                 for app_frontendname, frontend_config in new_app_cfg['frontend'].iteritems():
                     for line in frontend_config:
                         if line not in cfg['frontend'][app_frontendname]:
                             cfg['frontend'][app_frontendname].append(line)
-                    for backend_name, backend_config in new_app_cfg['backend'].iteritems():
-                        if backend_name not in cfg['backend']:
-                            cfg['backend'][backend_name] = backend_config
-                        else:
-                            for backend_config_line in backend_config:
-                                if backend_config_line not in cfg['backend'][backend_name]:
-                                    cfg['backend'][backend_name].append(backend_config_line)
+                for backend_name, backend_config in new_app_cfg['backend'].iteritems():
+                    if backend_name not in cfg['backend']:
+                        cfg['backend'][backend_name] = backend_config
+                    else:
+                        for backend_config_line in backend_config:
+                            if backend_config_line not in cfg['backend'][backend_name]:
+                                cfg['backend'][backend_name].append(backend_config_line)
 
-            with open(cfgjson_tmp, "w") as cfgjson_tmp_file:
-                json.dump(cfg, cfgjson_tmp_file)
+            with open(new_cfgjson_tmp, "w") as new_cfgjson_tmp_file:
+                json.dump(cfg, new_cfgjson_tmp_file)
 
             # Reconfigure CFG file
-            logger.debug("=> Reconfigure CFG")
-            with open(cfg_tmp, "w") as cfg_tmp_file:
-                cfg_tmp_file.write(_render_cfg(cfg))
+            # logger.debug("=> Reconfigure CFG")
+            # with open(cfg_tmp, "w") as cfg_tmp_file:
+            #     cfg_tmp_file.write(_render_cfg(cfg))
 
             haproxy_process_info = server_supervisor.getProcessInfo(HAPROXY_PROCESS_NAME)
             # HAProxy process is not running
             if haproxy_process_info['state'] != 1:
                 logger.debug("=> Initial configuration")
-                shutil.move(cfgjson_tmp, '/etc/haproxy/haproxy.cfg.json')
-                shutil.move(cfg_tmp, '/etc/haproxy/haproxy.cfg')
+                shutil.move(new_cfgjson_tmp, '/etc/haproxy/haproxy.cfg.json')
+                with open(new_cfg_tmp, "w") as new_cfg_tmp_file:
+                    new_cfg_tmp_file.write(_render_cfg(cfg))
+                shutil.move(new_cfg_tmp, '/etc/haproxy/haproxy.cfg')
 
                 # Start HAProxy
                 logger.debug("=> Start haproxy")
                 server_supervisor.startProcess(HAPROXY_PROCESS_NAME, wait=True)
 
             # Check if we need to update cfg file
-            elif haproxy_process_info['state'] == 1 and need_to_reload_config(cfg_tmp, '/etc/haproxy/haproxy.cfg'):
+            elif haproxy_process_info['state'] == 1 and need_to_reload_config(new_cfgjson_tmp,
+                                                                              '/etc/haproxy/haproxy.cfg.json'):
                 # Put new configuration
                 logger.debug("=> Put new configuration")
-                shutil.move(cfgjson_tmp, '/etc/haproxy/haproxy.cfg.json')
-                shutil.move(cfg_tmp, '/etc/haproxy/haproxy.cfg')
+                with open(new_cfg_tmp, "w") as new_cfg_tmp_file:
+                    new_cfg_tmp_file.write(_render_cfg(cfg))
+                shutil.move(new_cfgjson_tmp, '/etc/haproxy/haproxy.cfg.json')
+                shutil.move(new_cfg_tmp, '/etc/haproxy/haproxy.cfg')
 
                 # Reload haproxy
                 logger.debug("=> Reload haproxy")
