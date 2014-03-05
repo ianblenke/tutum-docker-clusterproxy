@@ -19,6 +19,9 @@ BALANCER_TYPE = "_PORT_%s_TCP" % PORT
 TUTUM_CLUSTER_NAME = "_TUTUM_API_URL"
 POLLING_PERIOD = 30
 
+APP_FRONTENDNAME = "frontend" + BALANCER_TYPE
+APP_BACKENDNAME = "cluster" + BALANCER_TYPE
+
 TUTUM_AUTH = os.environ.get("TUTUM_AUTH")
 
 
@@ -41,17 +44,14 @@ def add_or_update_app_to_haproxy(dictionary):
     logger.info("Adding or updating HAProxy with ports %s", outer_ports_and_web_public_dns)
     cfg = {'frontend': {}, 'backend': {}}
 
-    app_frontendname = hashlib.sha224("frontend_"+PORT).hexdigest()[:16]
-    app_backendname = "cluster_" + app_frontendname
-
-    cfg['frontend'][app_frontendname] = []
-    cfg['frontend'][app_frontendname].append(FRONTEND_BIND_LINE % PORT)
-    cfg['frontend'][app_frontendname].append(FRONTEND_USEBACKEND_LINE % {'b': app_backendname})
-    cfg['backend'][app_backendname] = ["balance roundrobin"]
+    cfg['frontend'][APP_FRONTENDNAME] = []
+    cfg['frontend'][APP_FRONTENDNAME].append(FRONTEND_BIND_LINE % PORT)
+    cfg['frontend'][APP_FRONTENDNAME].append(FRONTEND_USEBACKEND_LINE % {'b': APP_BACKENDNAME})
+    cfg['backend'][APP_BACKENDNAME] = ["balance roundrobin"]
 
     for outer_port_and_dns in outer_ports_and_web_public_dns:
 
-        cfg['backend'][app_backendname].append(BACKEND_USE_SERVER_LINE % {'h': app_backendname,
+        cfg['backend'][APP_BACKENDNAME].append(BACKEND_USE_SERVER_LINE % {'h': APP_BACKENDNAME,
                                                                           'i': outer_port_and_dns["web_public_dns"],
                                                                           'p': outer_port_and_dns["outer_port"]})
 
@@ -78,10 +78,9 @@ def _update_haproxy_config(new_app_cfg=None):
                 cfg = json.load(emptycfgjson_tmp_file)
 
             if new_app_cfg:
-                for app_frontendname, frontend_config in new_app_cfg['frontend'].iteritems():
-                    for line in frontend_config:
-                        if line not in cfg['frontend'][app_frontendname]:
-                            cfg['frontend'][app_frontendname].append(line)
+                for line in new_app_cfg['frontend'][APP_FRONTENDNAME]:
+                    if line not in cfg['frontend'][APP_FRONTENDNAME]:
+                        cfg['frontend'][APP_FRONTENDNAME].append(line)
                 for backend_name, backend_config in new_app_cfg['backend'].iteritems():
                     if backend_name not in cfg['backend']:
                         cfg['backend'][backend_name] = backend_config
