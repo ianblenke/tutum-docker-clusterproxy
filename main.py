@@ -196,7 +196,7 @@ if __name__ == "__main__":
             logger.debug("Balancer: Add or Update HAProxy with env vars: %s", balancer_dictionary_from_env_vars)
             add_or_update_app_to_haproxy(balancer_dictionary_from_env_vars)
 
-        except Exception as e:
-            print "ERROR: %s" % e
+        except Exception:
+            logger.exception("Error")
             pass
         time.sleep(POLLING_PERIOD)
