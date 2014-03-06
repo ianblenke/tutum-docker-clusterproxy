@@ -18,7 +18,6 @@ BALANCER_TYPE = "_PORT_%s_TCP" % PORT
 TUTUM_CLUSTER_NAME = "_TUTUM_API_URL"
 POLLING_PERIOD = 30
 
-APP_FRONTENDNAME = "http"
 APP_BACKENDNAME = "cluster"
 
 TUTUM_AUTH = os.environ.get("TUTUM_AUTH")
@@ -42,10 +41,6 @@ def add_or_update_app_to_haproxy(dictionary):
     outer_ports_and_web_public_dns = dictionary.values()
     logger.info("Adding or updating HAProxy with ports %s", outer_ports_and_web_public_dns)
     cfg = {'frontend': {}, 'backend': {}}
-
-    cfg['frontend'][APP_FRONTENDNAME] = []
-    cfg['frontend'][APP_FRONTENDNAME].append(FRONTEND_DEFUALTBACKEND_LINE % {'b': APP_BACKENDNAME})
-    cfg['backend'][APP_BACKENDNAME] = ["balance roundrobin"]
 
     for outer_port_and_dns in outer_ports_and_web_public_dns:
 
@@ -76,9 +71,6 @@ def _update_haproxy_config(new_app_cfg=None):
                 cfg = json.load(emptycfgjson_tmp_file)
 
             if new_app_cfg:
-                for line in new_app_cfg['frontend'][APP_FRONTENDNAME]:
-                    if line not in cfg['frontend'][APP_FRONTENDNAME]:
-                        cfg['frontend'][APP_FRONTENDNAME].append(line)
                 for backend_name, backend_config in new_app_cfg['backend'].iteritems():
                     if backend_name not in cfg['backend']:
                         cfg['backend'][backend_name] = backend_config

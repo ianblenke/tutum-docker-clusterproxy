@@ -21,7 +21,13 @@
     ],
     "frontend": {
         "http": [
-            "bind 0.0.0.0:80"
+            "bind 0.0.0.0:80",
+            "default_backend cluster"
+        ]
+    },
+    "backend": {
+        "cluster": [
+            "balance roundrobin"
         ]
     }
 }
