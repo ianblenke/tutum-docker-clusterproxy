@@ -17,7 +17,7 @@ PORT = "80"
 BALANCER_TYPE = "_PORT_%s_TCP" % PORT
 TUTUM_CLUSTER_NAME = "_TUTUM_API_URL"
 POLLING_PERIOD = 30
-HAPROXY_RELOAD = 'haproxy -p /var/run/haproxy.pid -sf $(cat /var/run/haproxy.pid)'
+HAPROXY_RELOAD = 'haproxy -f /etc/haproxy/haproxy.cfg -p /var/run/haproxy.pid -sf $(cat /var/run/haproxy.pid)'
 APP_BACKENDNAME = "cluster"
 
 TUTUM_AUTH = os.environ.get("TUTUM_AUTH")
