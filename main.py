@@ -19,7 +19,7 @@ BALANCER_TYPE = "_PORT_%s_TCP" % PORT
 TUTUM_CLUSTER_NAME = "_TUTUM_API_URL"
 POLLING_PERIOD = 30
 
-APP_FRONTENDNAME = "frontend" + BALANCER_TYPE
+APP_FRONTENDNAME = "http"
 APP_BACKENDNAME = "cluster" + BALANCER_TYPE
 
 TUTUM_AUTH = os.environ.get("TUTUM_AUTH")
@@ -79,7 +79,8 @@ def _update_haproxy_config(new_app_cfg=None):
 
             if new_app_cfg:
                 for line in new_app_cfg['frontend'][APP_FRONTENDNAME]:
-                    cfg['frontend'][APP_FRONTENDNAME].append(line)
+                    if line not in cfg['frontend'][APP_FRONTENDNAME]:
+                        cfg['frontend'][APP_FRONTENDNAME].append(line)
                 for backend_name, backend_config in new_app_cfg['backend'].iteritems():
                     if backend_name not in cfg['backend']:
                         cfg['backend'][backend_name] = backend_config
