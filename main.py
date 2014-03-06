@@ -11,8 +11,7 @@ import subprocess
 
 logger = logging.getLogger(__name__)
 
-FRONTEND_USEBACKEND_LINE = "use_backend %(b)s if is_%(b)s"
-FRONTEND_BIND_LINE = "bind :%s"
+FRONTEND_DEFUALTBACKEND_LINE = "default_backend %(b)s"
 BACKEND_USE_SERVER_LINE = "server %(h)s-%(p)s %(i)s:%(p)s"
 PORT = "80"
 BALANCER_TYPE = "_PORT_%s_TCP" % PORT
@@ -20,7 +19,7 @@ TUTUM_CLUSTER_NAME = "_TUTUM_API_URL"
 POLLING_PERIOD = 30
 
 APP_FRONTENDNAME = "http"
-APP_BACKENDNAME = "cluster" + BALANCER_TYPE
+APP_BACKENDNAME = "cluster"
 
 TUTUM_AUTH = os.environ.get("TUTUM_AUTH")
 
@@ -45,8 +44,7 @@ def add_or_update_app_to_haproxy(dictionary):
     cfg = {'frontend': {}, 'backend': {}}
 
     cfg['frontend'][APP_FRONTENDNAME] = []
-    cfg['frontend'][APP_FRONTENDNAME].append(FRONTEND_BIND_LINE % PORT)
-    cfg['frontend'][APP_FRONTENDNAME].append(FRONTEND_USEBACKEND_LINE % {'b': APP_BACKENDNAME})
+    cfg['frontend'][APP_FRONTENDNAME].append(FRONTEND_DEFUALTBACKEND_LINE % {'b': APP_BACKENDNAME})
     cfg['backend'][APP_BACKENDNAME] = ["balance roundrobin"]
 
     for outer_port_and_dns in outer_ports_and_web_public_dns:
