@@ -17,7 +17,7 @@ PORT = "80"
 BALANCER_TYPE = "_PORT_%s_TCP" % PORT
 TUTUM_CLUSTER_NAME = "_TUTUM_API_URL"
 POLLING_PERIOD = 30
-
+HAPROXY_RELOAD = '$HAPROXY -f /etc/haproxy/haproxy.cfg -p /var/run/haproxy.pid -sf $(cat /var/run/haproxy.pid)'
 APP_BACKENDNAME = "cluster"
 
 TUTUM_AUTH = os.environ.get("TUTUM_AUTH")
@@ -94,8 +94,7 @@ def _update_haproxy_config(new_app_cfg=None):
 
                 # Reload haproxy
                 logger.debug("=> Reload haproxy")
-                cmd = "sudo -S bash -c '/etc/init.d/haproxy reload'"
-                process = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                process = subprocess.Popen(HAPROXY_RELOAD, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 process.communicate()
                 assert process.returncode == 0, "Error reloading haproxy configuration"
 
