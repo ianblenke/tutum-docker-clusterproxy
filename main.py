@@ -79,8 +79,7 @@ def _update_haproxy_config(new_app_cfg=None):
 
             if new_app_cfg:
                 for line in new_app_cfg['frontend'][APP_FRONTENDNAME]:
-                    if line not in cfg['frontend'][APP_FRONTENDNAME]:
-                        cfg['frontend'][APP_FRONTENDNAME].append(line)
+                    cfg['frontend'][APP_FRONTENDNAME].append(line)
                 for backend_name, backend_config in new_app_cfg['backend'].iteritems():
                     if backend_name not in cfg['backend']:
                         cfg['backend'][backend_name] = backend_config
