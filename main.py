@@ -41,6 +41,7 @@ def add_or_update_app_to_haproxy(dictionary):
     outer_ports_and_web_public_dns = dictionary.values()
     logger.info("Adding or updating HAProxy with ports %s", outer_ports_and_web_public_dns)
     cfg = {'frontend': {}, 'backend': {}}
+    cfg['backend'][APP_BACKENDNAME] = []
 
     for outer_port_and_dns in outer_ports_and_web_public_dns:
 
