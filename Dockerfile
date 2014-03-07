@@ -17,3 +17,5 @@ RUN chmod 755 /*.sh
 RUN pip install -r /requirements.txt
 
 CMD ["/run.sh"]
+
+EXPOSE 80
