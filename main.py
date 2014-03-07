@@ -21,6 +21,7 @@ HAPROXY_RELOAD = 'haproxy -f /etc/haproxy/haproxy.cfg -p /var/run/haproxy.pid -s
 APP_BACKENDNAME = "cluster"
 
 TUTUM_AUTH = os.environ.get("TUTUM_AUTH")
+HAPROXY_CURRENT_SUBPROCESS = None
 
 
 def need_to_reload_config(current_filename, new_filename):
@@ -125,6 +126,15 @@ def _render_cfg(cfg):
     return out
 
 
+def haproxy_hot_reconfiguration():
+    logger.debug("=> Reload haproxy")
+    process = subprocess.Popen(HAPROXY_RELOAD, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    process.communicate()
+    assert process.returncode == 0, "Error reloading haproxy configuration"
+    HAPROXY_CURRENT_SUBPROCESS.wait()
+    HAPROXY_CURRENT_SUBPROCESS = process
+
+
 def get_haproxy_dict_from_env_vars_dict(env_vars):
     outer_port_list = {}
     cluster_uris = {}
@@ -154,6 +164,14 @@ if __name__ == "__main__":
     logger.debug("Balancer: HAProxy service is Running")
     session = requests.Session()
     headers = {"Authorization": TUTUM_AUTH}
+
+    # Launch HAProxy
+    process = subprocess.Popen("haproxy -f /etc/haproxy/haproxy.cfg -p /var/run/haproxy.pid -db",
+                               shell=True,
+                               stdout=subprocess.PIPE,
+                               stderr=subprocess.PIPE)
+    process.communicate()
+    HAPROXY_CURRENT_SUBPROCESS = process
 
     while True:
         try:

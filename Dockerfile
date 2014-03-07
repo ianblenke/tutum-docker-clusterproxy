@@ -8,7 +8,6 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y haproxy 
 ADD haproxy.cfg /etc/haproxy/haproxy.cfg
 ADD haproxy.cfg.json /etc/haproxy/empty_haproxy.cfg.json
 ADD haproxy.cfg.json /etc/haproxy/haproxy.cfg.json
-ADD supervisord-haproxy.conf /etc/supervisor/conf.d/supervisord-haproxy.conf
 ADD supervisord-httpserver.conf /etc/supervisor/conf.d/supervisord-httpserver.conf
 ADD requirements.txt /requirements.txt
 ADD supervisord-balancer.conf /etc/supervisor/conf.d/supervisord-balancer.conf
