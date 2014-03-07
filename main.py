@@ -17,7 +17,7 @@ PORT = "80"
 BALANCER_TYPE = "_PORT_%s_TCP" % PORT
 TUTUM_CLUSTER_NAME = "_TUTUM_API_URL"
 POLLING_PERIOD = 30
-HAPROXY_RELOAD = 'haproxy -f /etc/haproxy/haproxy.cfg -p /var/run/haproxy.pid -sf $(cat /var/run/haproxy.pid)'
+HAPROXY_CMD = ['/usr/sbin/haproxy', '-f', '/etc/haproxy/haproxy.cfg', '-db']
 APP_BACKENDNAME = "cluster"
 
 TUTUM_AUTH = os.environ.get("TUTUM_AUTH")
@@ -94,10 +94,7 @@ def _update_haproxy_config(new_app_cfg=None):
                 shutil.move(new_cfg_tmp, '/etc/haproxy/haproxy.cfg')
 
                 # Reload haproxy
-                logger.debug("=> Reload haproxy")
-                process = subprocess.Popen(HAPROXY_RELOAD, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                process.communicate()
-                assert process.returncode == 0, "Error reloading haproxy configuration"
+                haproxy_hot_reconfiguration()
 
         except Exception:
             raise
@@ -127,10 +124,9 @@ def _render_cfg(cfg):
 
 
 def haproxy_hot_reconfiguration():
+    global HAPROXY_CURRENT_SUBPROCESS
     logger.debug("=> Reload haproxy")
-    process = subprocess.Popen(HAPROXY_RELOAD, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    process.communicate()
-    assert process.returncode == 0, "Error reloading haproxy configuration"
+    process = subprocess.Popen(HAPROXY_CMD + ["-sf", str(HAPROXY_CURRENT_SUBPROCESS.pid)])
     HAPROXY_CURRENT_SUBPROCESS.wait()
     HAPROXY_CURRENT_SUBPROCESS = process
 
@@ -166,12 +162,7 @@ if __name__ == "__main__":
     headers = {"Authorization": TUTUM_AUTH}
 
     # Launch HAProxy
-    process = subprocess.Popen("haproxy -f /etc/haproxy/haproxy.cfg -p /var/run/haproxy.pid -db",
-                               shell=True,
-                               stdout=subprocess.PIPE,
-                               stderr=subprocess.PIPE)
-    process.communicate()
-    HAPROXY_CURRENT_SUBPROCESS = process
+    HAPROXY_CURRENT_SUBPROCESS = subprocess.Popen(HAPROXY_CMD)
 
     while True:
         try:
