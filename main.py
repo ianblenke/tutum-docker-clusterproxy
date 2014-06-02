@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 FRONTEND_DEFUALTBACKEND_LINE = "default_backend %(b)s"
 BACKEND_USE_SERVER_LINE = "server %(h)s-%(p)s %(i)s:%(p)s"
-PORT = "80"
+PORT = os.getenv("PORT", "80")
 BALANCER_TYPE = "_PORT_%s_TCP" % PORT
 TUTUM_CLUSTER_NAME = "_TUTUM_API_URL"
 POLLING_PERIOD = 30

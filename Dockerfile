@@ -15,5 +15,7 @@ ADD run.sh /run.sh
 RUN chmod 755 /*.sh
 RUN pip install -r /requirements.txt
 
+ENV PORT 80
+
 EXPOSE 80
 CMD ["/run.sh"]
