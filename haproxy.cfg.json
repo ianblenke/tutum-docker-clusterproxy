@@ -1,7 +1,5 @@
 {
     "global": [
-        "log 127.0.0.1   local0",
-        "log 127.0.0.1   local1 notice",
         "maxconn 4096",
         "pidfile /var/run/haproxy.pid",
         "user haproxy",
@@ -9,26 +7,22 @@
         "daemon"
     ],
     "defaults": [
-        "log     global",
-        "mode    http",
-        "option  httplog",
-        "option  dontlognull",
-        "retries 3",
-        "option redispatch",
-        "maxconn 2000",
+        "mode    $MODE",
+        "option  redispatch",
+        "maxconn 4096",
         "contimeout      5000",
         "clitimeout      50000",
         "srvtimeout      50000"
     ],
     "frontend": {
         "http": [
-            "bind 0.0.0.0:80",
+            "bind 0.0.0.0:$PORT",
             "default_backend cluster"
         ]
     },
     "backend": {
         "cluster": [
-            "balance roundrobin"
+            "balance $BALANCE"
         ]
     }
 }

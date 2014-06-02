@@ -14,6 +14,13 @@ logger = logging.getLogger(__name__)
 FRONTEND_DEFUALTBACKEND_LINE = "default_backend %(b)s"
 BACKEND_USE_SERVER_LINE = "server %(h)s-%(p)s %(i)s:%(p)s"
 PORT = os.getenv("PORT", "80")
+MODE = os.getenv("MODE", "http")
+BALANCE = os.getenv("BALANCE", "roundrobin")
+HAPROXY_SETTINGS = {
+    "PORT": PORT,
+    "MODE": MODE,
+    "BALANCE": BALANCE
+}
 BALANCER_TYPE = "_PORT_%s_TCP" % PORT
 TUTUM_CLUSTER_NAME = "_TUTUM_API_URL"
 POLLING_PERIOD = 30
@@ -112,13 +119,13 @@ def _render_cfg(cfg):
     for section in "global", "defaults":
         out += '%s\n' % section
         for value in cfg[section]:
-            out += '\t%s\n' % value
+            out += '\t%s\n' % value.replace("$MODE", MODE)
 
     for section in "frontend", "backend":
         for header, values in cfg[section].iteritems():
             out += '%s %s\n' % (section, header)
             for value in values:
-                out += '\t%s\n' % value
+                out += '\t%s\n' % value.replace("$PORT", PORT).replace("$BALANCE", BALANCE)
 
     return out
 

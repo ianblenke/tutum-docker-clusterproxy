@@ -1,4 +1,4 @@
-FROM ubuntu:latest
+FROM ubuntu:trusty
 MAINTAINER Bernardo Pericacho <bernardo@tutum.co>
 
 # Install required packages
@@ -15,7 +15,12 @@ ADD run.sh /run.sh
 RUN chmod 755 /*.sh
 RUN pip install -r /requirements.txt
 
+# PORT to load balance and to expose (also update the EXPOSE directive below)
 ENV PORT 80
+# MODE of operation (http, tcp)
+ENV MODE http
+# algorithm for load balancing (roundrobin, source, leastconn, ...)
+ENV BALANCE roundrobin
 
 EXPOSE 80
 CMD ["/run.sh"]
