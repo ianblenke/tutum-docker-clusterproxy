@@ -16,7 +16,7 @@
     ],
     "frontend": {
         "https_frontend":[
-            "bind *:443 ssl crt /server.pem",
+            "bind *:443 ssl crt /certs/server.pem",
             "mode http",
             "option httpclose",
             "option forwardfor",

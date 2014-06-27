@@ -26,7 +26,7 @@ You can overwrite the following HAproxy configuration options:
 * `PORT` (default: `80`): Port HAproxy will bind to, and the port that will forward requests to.
 * `MODE` (default: `http`): Mode of load balancing for HAproxy. Possible values include: `http`, `tcp`, `health`.
 * `BALANCE` (default: `roundrobin`): Load balancing algorithm to use. Possible values include: `roundrobin`, `static-rr`, `source`, `leastconn`.
-
+*  SSL_CERT (default:  **None**): By default, HAProxy runs `http` load balancer. When provided certificate using this environment variable, HAProxy will run `HTTPS` load balancer.
 Check [the HAproxy configuration manual](http://haproxy.1wt.eu/download/1.4/doc/configuration.txt) for more information on the above.
 
 
