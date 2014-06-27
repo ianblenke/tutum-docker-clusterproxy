@@ -15,12 +15,16 @@ defaults
         retries 3
         option redispatch
         maxconn 2000
-        contimeout      5000
-        clitimeout      50000
-        srvtimeout      50000
+        timeout connect 5000
+        timeout client  50000
+        timeout server  50000
 
-frontend http
-        bind 0.0.0.0:80
+frontend https_frontend
+        bind *:443 ssl crt /certs/server.pem
+        mode http
+        option httpclose
+        option forwardfor
+        reqadd X-Forwarded-Proto:\ https
         default_backend cluster
 backend cluster
         balance roundrobin

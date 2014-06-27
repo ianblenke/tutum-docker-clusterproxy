@@ -1,19 +1,19 @@
 FROM ubuntu:trusty
-MAINTAINER Bernardo Pericacho <bernardo@tutum.co>
+MAINTAINER Bernardo Pericacho <bernardo@tutum.co> && Feng Honglin <hfeng@tutum.co>
+
+RUN apt-get update &&  DEBIAN_FRONTEND=noninteractive apt-get install -y software-properties-common && add-apt-repository ppa:vbernat/haproxy-1.5
 
 # Install required packages
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y haproxy supervisor python-pip
 
 # Add configuration and scripts
-ADD haproxy.cfg /etc/haproxy/haproxy.cfg
-ADD haproxy.cfg.json /etc/haproxy/empty_haproxy.cfg.json
-ADD haproxy.cfg.json /etc/haproxy/haproxy.cfg.json
 ADD requirements.txt /requirements.txt
-ADD supervisord-balancer.conf /etc/supervisor/conf.d/supervisord-balancer.conf
+RUN pip install -r /requirements.txt
+
 ADD main.py /main.py
 ADD run.sh /run.sh
 RUN chmod 755 /*.sh
-RUN pip install -r /requirements.txt
+ADD conf/ /conf/ 
 
 # PORT to load balance and to expose (also update the EXPOSE directive below)
 ENV PORT 80
@@ -22,5 +22,7 @@ ENV MODE http
 # algorithm for load balancing (roundrobin, source, leastconn, ...)
 ENV BALANCE roundrobin
 
-EXPOSE 80
+ENV SSL_CERT **None**
+
+EXPOSE 443 80
 CMD ["/run.sh"]
