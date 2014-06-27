@@ -10,13 +10,17 @@
         "mode    $MODE",
         "option  redispatch",
         "maxconn 4096",
-        "contimeout      5000",
-        "clitimeout      50000",
-        "srvtimeout      50000"
+        "timeout connect 5000",
+        "timeout client  50000",
+        "timeout server  50000"
     ],
     "frontend": {
-        "http": [
-            "bind 0.0.0.0:$PORT",
+        "https_frontend":[
+            "bind *:443 ssl crt /server.pem",
+            "mode http",
+            "option httpclose",
+            "option forwardfor",
+            "reqadd X-Forwarded-Proto:\\ https",
             "default_backend cluster"
         ]
     },

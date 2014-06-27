@@ -1,5 +1,7 @@
 FROM ubuntu:trusty
-MAINTAINER Bernardo Pericacho <bernardo@tutum.co>
+MAINTAINER Bernardo Pericacho <bernardo@tutum.co> && Feng Honglin <hfeng@tutum.co>
+
+RUN apt-get update &&  DEBIAN_FRONTEND=noninteractive apt-get install -y software-properties-common && add-apt-repository ppa:vbernat/haproxy-1.5
 
 # Install required packages
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y haproxy supervisor python-pip
@@ -22,5 +24,7 @@ ENV MODE http
 # algorithm for load balancing (roundrobin, source, leastconn, ...)
 ENV BALANCE roundrobin
 
-EXPOSE 80
+ADD server.pem /server.pem
+
+EXPOSE 443 
 CMD ["/run.sh"]

@@ -1,2 +1,2 @@
 #!/bin/bash
-exec supervisord -n
+exec python /main.py 
