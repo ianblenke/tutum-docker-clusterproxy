@@ -4,7 +4,7 @@ MAINTAINER Bernardo Pericacho <bernardo@tutum.co> && Feng Honglin <hfeng@tutum.c
 RUN apt-get update &&  DEBIAN_FRONTEND=noninteractive apt-get install -y software-properties-common && add-apt-repository ppa:vbernat/haproxy-1.5
 
 # Install required packages
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y haproxy supervisor python-pip
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y haproxy python-pip
 
 # Add configuration and scripts
 ADD requirements.txt /requirements.txt
