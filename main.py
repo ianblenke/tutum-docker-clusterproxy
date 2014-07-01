@@ -11,8 +11,6 @@ import subprocess
 import sys
 
 logger = logging.getLogger(__name__)
-handler = logging.StreamHandler(stream=sys.stdout)
-logger.addHandler(handler)
 
 FRONTEND_DEFUALTBACKEND_LINE = "default_backend %(b)s"
 BACKEND_USE_SERVER_LINE = "server %(h)s-%(p)s %(i)s:%(p)s"
@@ -165,7 +163,7 @@ def get_haproxy_dict_from_env_vars_dict(env_vars):
 
 
 if __name__ == "__main__":
-    logging.basicConfig()
+    logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 
     logger.debug("Balancer: HAProxy service is Running")
     session = requests.Session()
