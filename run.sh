@@ -5,17 +5,15 @@ if [ "${SSL_CERT}" = "**None**" ]; then
 fi
 
 if [ -n "$SSL_CERT" ]; then
-    echo "Found ssl certificate, start https proxy"
+    echo "Found ssl certificate"
     mkdir -p /certs
     echo -e "${SSL_CERT}" > /certs/server.pem
-    cp /conf/haproxy.cfg.json.ssl /etc/haproxy/haproxy.cfg.json
-    cp /conf/haproxy.cfg.json.ssl /etc/haproxy/empty_haproxy.cfg.json
-    cp /conf/haproxy.cfg.ssl /etc/haproxy/haproxy.cfg
+    cp /conf/haproxy-ssl.cfg.json /etc/haproxy/haproxy.cfg.json
+    cp /conf/haproxy-ssl.cfg.json /etc/haproxy/empty_haproxy.cfg.json
 else
-    echo "No ssl certificate is found, start http proxy"
+    echo "No ssl certificate found"
     cp /conf/haproxy.cfg.json /etc/haproxy/haproxy.cfg.json
     cp /conf/haproxy.cfg.json /etc/haproxy/empty_haproxy.cfg.json
-    cp /conf/haproxy.cfg /etc/haproxy/haproxy.cfg
 fi
 
 exec python /main.py 

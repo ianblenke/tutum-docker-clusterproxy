@@ -11,8 +11,8 @@
         "option  redispatch",
         "maxconn 4096",
         "timeout connect 5000",
-        "timeout client 50000",
-        "timeout server 50000"
+        "timeout client  50000",
+        "timeout server  50000"
     ],
     "frontend": {
         "http": [

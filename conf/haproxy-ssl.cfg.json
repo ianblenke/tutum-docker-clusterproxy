@@ -16,9 +16,7 @@
     ],
     "frontend": {
         "https_frontend":[
-            "bind *:443 ssl crt /certs/server.pem",
-            "mode http",
-            "option httpclose",
+            "bind 0.0.0.0:$PORT ssl crt /certs/server.pem",
             "option forwardfor",
             "reqadd X-Forwarded-Proto:\\ https",
             "default_backend cluster"

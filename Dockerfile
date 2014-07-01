@@ -14,6 +14,7 @@ ADD main.py /main.py
 ADD run.sh /run.sh
 RUN chmod 755 /*.sh
 ADD conf/ /conf/ 
+ADD conf/haproxy.cfg /etc/haproxy/haproxy.cfg
 
 # PORT to load balance and to expose (also update the EXPOSE directive below)
 ENV PORT 80
@@ -21,8 +22,8 @@ ENV PORT 80
 ENV MODE http
 # algorithm for load balancing (roundrobin, source, leastconn, ...)
 ENV BALANCE roundrobin
-
+# SSL certificate to use (optional)
 ENV SSL_CERT **None**
 
-EXPOSE 443 80
+EXPOSE 80
 CMD ["/run.sh"]

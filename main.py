@@ -8,8 +8,11 @@ import requests
 import time
 import string
 import subprocess
+import sys
 
 logger = logging.getLogger(__name__)
+handler = logging.StreamHandler(stream=sys.stdout)
+logger.addHandler(handler)
 
 FRONTEND_DEFUALTBACKEND_LINE = "default_backend %(b)s"
 BACKEND_USE_SERVER_LINE = "server %(h)s-%(p)s %(i)s:%(p)s"
