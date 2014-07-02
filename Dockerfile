@@ -13,8 +13,8 @@ RUN pip install -r /requirements.txt
 ADD main.py /main.py
 ADD run.sh /run.sh
 RUN chmod 755 /*.sh
-ADD conf/ /conf/ 
-ADD conf/haproxy.cfg /etc/haproxy/haproxy.cfg
+ADD conf/haproxy.cfg.json /etc/haproxy/haproxy.cfg.json
+ADD conf/haproxy.cfg.json /etc/haproxy/empty_haproxy.cfg.json
 
 # PORT to load balance and to expose (also update the EXPOSE directive below)
 ENV PORT 80
@@ -22,6 +22,12 @@ ENV PORT 80
 ENV MODE http
 # algorithm for load balancing (roundrobin, source, leastconn, ...)
 ENV BALANCE roundrobin
+# maximum number of connections
+ENV MAXCONN 4096
+# list of options separated by commas
+ENV OPTIONS redispatch
+# list of timeout entries separated by commas
+ENV TIMEOUTS connect 5000,client 50000,server 50000
 # SSL certificate to use (optional)
 ENV SSL_CERT **None**
 

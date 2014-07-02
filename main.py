@@ -17,11 +17,10 @@ BACKEND_USE_SERVER_LINE = "server %(h)s-%(p)s %(i)s:%(p)s"
 PORT = os.getenv("PORT", "80")
 MODE = os.getenv("MODE", "http")
 BALANCE = os.getenv("BALANCE", "roundrobin")
-HAPROXY_SETTINGS = {
-    "PORT": PORT,
-    "MODE": MODE,
-    "BALANCE": BALANCE
-}
+MAXCONN = os.getenv("MAXCONN", "4096")
+SSL = os.getenv("SSL", "")
+OPTIONS = os.getenv("OPTIONS", "redispatch").split(",")
+TIMEOUTS = os.getenv("TIMEOUTS", "connect 5000,client 50000,server 50000").split(",")
 BALANCER_TYPE = "_PORT_%s_TCP" % PORT
 TUTUM_CLUSTER_NAME = "_TUTUM_API_URL"
 POLLING_PERIOD = 30
@@ -120,23 +119,30 @@ def _render_cfg(cfg):
     for section in "global", "defaults":
         out += '%s\n' % section
         for value in cfg[section]:
-            out += '\t%s\n' % value.replace("$MODE", MODE)
+            out += '\t%s\n' % value.replace("$MODE", MODE).replace("$MAXCONN", MAXCONN)
+        if section == "defaults":
+            for option in OPTIONS:
+                out += '\toption %s\n' % option
+            for timeout in TIMEOUTS:
+                out += '\ttimeout %s\n' % timeout
 
     for section in "frontend", "backend":
         for header, values in cfg[section].iteritems():
             out += '%s %s\n' % (section, header)
             for value in values:
-                out += '\t%s\n' % value.replace("$PORT", PORT).replace("$BALANCE", BALANCE)
+                out += '\t%s\n' % value.replace("$PORT", PORT).replace("$BALANCE", BALANCE).replace("$SSL", SSL)
 
+    logger.debug("Using new HAproxy configuration:\n%s", out)
     return out
 
 
 def haproxy_hot_reconfiguration():
     global HAPROXY_CURRENT_SUBPROCESS
-    logger.debug("=> Reload haproxy")
-    process = subprocess.Popen(HAPROXY_CMD + ["-sf", str(HAPROXY_CURRENT_SUBPROCESS.pid)])
-    HAPROXY_CURRENT_SUBPROCESS.wait()
-    HAPROXY_CURRENT_SUBPROCESS = process
+    if HAPROXY_CURRENT_SUBPROCESS:
+        logger.debug("=> Reload haproxy")
+        process = subprocess.Popen(HAPROXY_CMD + ["-sf", str(HAPROXY_CURRENT_SUBPROCESS.pid)])
+        HAPROXY_CURRENT_SUBPROCESS.wait()
+        HAPROXY_CURRENT_SUBPROCESS = process
 
 
 def get_haproxy_dict_from_env_vars_dict(env_vars):
@@ -169,9 +175,6 @@ if __name__ == "__main__":
     session = requests.Session()
     headers = {"Authorization": TUTUM_AUTH}
 
-    # Launch HAProxy
-    HAPROXY_CURRENT_SUBPROCESS = subprocess.Popen(HAPROXY_CMD)
-
     while True:
         try:
             # Get balancer dictionary and clusters from env vars
@@ -200,8 +203,11 @@ if __name__ == "__main__":
                     for container in containers_to_delete:
                         balancer_dictionary_from_env_vars.pop(container)
 
-            logger.debug("Balancer: Add or Update HAProxy with env vars: %s", balancer_dictionary_from_env_vars)
             add_or_update_app_to_haproxy(balancer_dictionary_from_env_vars)
+
+            if not HAPROXY_CURRENT_SUBPROCESS:
+                # Launch HAProxy
+                HAPROXY_CURRENT_SUBPROCESS = subprocess.Popen(HAPROXY_CMD)
 
         except Exception:
             logger.exception("Error")

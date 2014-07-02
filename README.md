@@ -26,7 +26,11 @@ You can overwrite the following HAproxy configuration options:
 * `PORT` (default: `80`): Port HAproxy will bind to, and the port that will forward requests to.
 * `MODE` (default: `http`): Mode of load balancing for HAproxy. Possible values include: `http`, `tcp`, `health`.
 * `BALANCE` (default: `roundrobin`): Load balancing algorithm to use. Possible values include: `roundrobin`, `static-rr`, `source`, `leastconn`.
+* `MAXCONN` (default: `4096`): Sets the maximum per-process number of concurrent connections.
+* `OPTIONS` (default: `redispatch`): Comma-separated list of HAproxy `option` entries to the `default` section.
+* `TIMEOUTS` (default: `connect 5000,client 50000,server 50000`): Comma-separated list of HAproxy `timeout` entries to the `default` section.
 * `SSL_CERT` (default:  `**None**`): An optional certificate to use on the binded port. It should have both the private and public keys content. If using it for HTTPS, remember to also set `PORT=443` as the port is not changed by this setting.
+
 Check [the HAproxy configuration manual](http://haproxy.1wt.eu/download/1.4/doc/configuration.txt) for more information on the above.
 
 
