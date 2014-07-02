@@ -47,7 +47,7 @@ def add_or_update_app_to_haproxy(dictionary):
     if not dictionary or dictionary == {}:
         return
     outer_ports_and_web_public_dns = dictionary.values()
-    logger.info("Adding or updating HAProxy with ports %s", outer_ports_and_web_public_dns)
+    logger.debug("Adding or updating HAProxy with ports %s", outer_ports_and_web_public_dns)
     cfg = {'frontend': {}, 'backend': {}}
     cfg['backend'][APP_BACKENDNAME] = []
 
@@ -132,7 +132,7 @@ def _render_cfg(cfg):
             for value in values:
                 out += '\t%s\n' % value.replace("$PORT", PORT).replace("$BALANCE", BALANCE).replace("$SSL", SSL)
 
-    logger.debug("Using new HAproxy configuration:\n%s", out)
+    logger.info("Using new HAproxy configuration:\n%s", out)
     return out
 
 
@@ -169,7 +169,7 @@ def get_haproxy_dict_from_env_vars_dict(env_vars):
 
 
 if __name__ == "__main__":
-    logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+    logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
     logger.debug("Balancer: HAProxy service is Running")
     session = requests.Session()
